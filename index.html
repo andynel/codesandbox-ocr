@@ -1,0 +1,212 @@
+<html>
+  <head>
+    <script src="https://cdn.jsdelivr.net/gh/naptha/tesseract.js-core/tesseract-core.wasm.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/2.1.4/tesseract.min.js"></script>
+    <script src="https://code.iconify.design/1/1.0.7/iconify.min.js"></script>
+  </head>
+
+  <body>
+    <div>
+      <h1 class="gradient">OCR</h1>
+      <p>
+        <center>
+          <i class="gradient"
+            >Convert an image into a searchable pdf quickly and easily!</i
+          >
+        </center>
+      </p>
+      <input type="file" id="uploader" /><label for="uploader"
+        ><span class="iconify" data-icon="fa-solid:upload"></span>Choose
+        File</label
+      >
+      <button id="download-pdf" disabled="true">
+        <span class="iconify" data-icon="fa-solid:download"></span>Download PDF
+      </button>
+    </div>
+    <div id="progress"><div id="progress-indicator"></div></div>
+    <textarea id="board" readonly rows="8" cols="80">
+Upload an image file</textarea
+    >
+
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300&display=swap");
+
+      * {
+        font-family: "Poppins", sans-serif;
+      }
+      label {
+        width: 100%;
+      }
+      #progress,
+      #progress * {
+        position: fixed;
+        top: 0;
+        display: block;
+        margin: 0 auto;
+        height: 8px;
+        overflow: hidden;
+        width: 100%;
+        padding: 0;
+        margin-left: -8px;
+      }
+      #progress-indicator {
+        transition: width 0.2s ease;
+        width: 0%;
+        background: linear-gradient(to right, lightseagreen, lightgreen);
+        margin: 0;
+      }
+      body {
+        background: #101010;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        max-width: 600px;
+        width: 80vw;
+        flex-direction: column;
+      }
+      input[type="file"] {
+        display: none;
+      }
+      label[for="uploader"],
+      button {
+        background: transparent;
+        margin-bottom: 10px;
+        border: 1px solid lightseagreen;
+        background: linear-gradient(to right, lightseagreen, lightgreen);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        cursor: pointer;
+        width: fit-content;
+        display: inline-block;
+        border-radius: 5px;
+        padding: 8px;
+      }
+      button {
+        padding: 10px;
+        position: relative;
+        bottom: 0px;
+      }
+      [disabled] {
+        opacity: 0.5;
+      }
+      .iconify {
+        color: lightgreen;
+        font-size: 15px;
+        margin: 2px;
+      }
+      .gradient {
+        text-align: center;
+        background: linear-gradient(to right, lightseagreen, lightgreen);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      html {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        width: 100vw;
+      }
+      textarea {
+        background: #222;
+        padding: 10px;
+        border-radius: 5px;
+        color: white;
+        border: none;
+        resize: vertical;
+        overflow: scroll;
+        width: 100%;
+        white-space: pre;
+        font-family: "Courier New", Courier, monospace;
+      }
+    </style>
+    <script>
+      window.onload = () => {
+        setTimeout(() => {
+          init();
+        }, 1000);
+      };
+      const { createWorker } = Tesseract;
+      var progress = 0;
+      const worker = createWorker({
+        corePath:
+          "https://cdn.jsdelivr.net/gh/naptha/tesseract.js-core/tesseract-core.wasm.js",
+        logger: (m) => {
+          progress = m.progress;
+          document.querySelector("textarea").value += `\nProgress: ${pad(
+            m.progress
+          )}  Job: ${pad(job(m))}Status: ${m.status}`;
+          console.log(m);
+
+          document.getElementById(
+            "progress-indicator"
+          ).style.width = `${Math.floor(progress * 110)}%`;
+
+          document.querySelector("textarea").scrollTop = document.querySelector(
+            "textarea"
+          ).scrollHeight;
+        }
+      });
+      const uploader = document.getElementById("uploader");
+      const dlBtn = document.getElementById("download-pdf");
+      const init = async () => {
+        await worker.load();
+        await worker.loadLanguage("eng");
+        await worker.initialize("eng");
+        return;
+      };
+      const recognize = async ({ target: { files } }) => {
+        const {
+          data: { text }
+        } = await worker.recognize(files[0]);
+        const board = document.getElementById("board");
+        board.value = `Output text: \n${text}`;
+        dlBtn.disabled = false;
+        downloadPDF();
+      };
+      const downloadPDF = async () => {
+        const filename = "Output.pdf";
+        const { data } = await worker.getPDF("OCR Output");
+        const blob = new Blob([new Uint8Array(data)], {
+          type: "application/pdf"
+        });
+        if (navigator.msSaveBlob) {
+          // IE 10+
+          navigator.msSaveBlob(blob, filename);
+        } else {
+          const link = document.createElement("a");
+          if (link.download !== undefined) {
+            const url = URL.createObjectURL(blob);
+            window.open(url, "_blank");
+            link.setAttribute("href", url);
+            link.setAttribute("download", filename);
+            link.style.visibility = "hidden";
+            document.body.appendChild(link);
+            dlBtn.onclick = () => {
+              link.click();
+              document.body.removeChild(link);
+            };
+          }
+        }
+      };
+      uploader.addEventListener("change", recognize);
+      function pad(text = "") {
+        if (text.length < 20) {
+          return text + " ".repeat(20 - text.length);
+        } else {
+          return text;
+        }
+      }
+      function job(m) {
+        try {
+          return m.jobId || m.workerId;
+        } catch (err) {
+          return "No jobId";
+        }
+      }
+    </script>
+  </body>
+</html>
